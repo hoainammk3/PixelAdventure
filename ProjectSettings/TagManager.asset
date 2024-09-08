@@ -8,6 +8,8 @@ TagManager:
   - Enermy
   - Trap
   - Fruit
+  - Damage
+  - HitBoxEnermy
   layers:
   - Default
   - TransparentFX

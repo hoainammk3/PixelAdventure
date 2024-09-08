@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 public class Player : MonoBehaviour
@@ -16,13 +17,14 @@ public class Player : MonoBehaviour
     private bool _isDie = false;
     private int _heal = 100;
     private float _inputHorizontal = 0;
-    
+
     private static readonly int IsRunning = Animator.StringToHash("isRunning");
     private static readonly int VelocityY = Animator.StringToHash("velocityY");
     private static readonly int IsGround = Animator.StringToHash("isGround");
     private static readonly int IsJump1 = Animator.StringToHash("isJump1");
     private static readonly int IsJump2 = Animator.StringToHash("isJump2");
     private static readonly int Hit = Animator.StringToHash("OnHit");
+    private static readonly int IsDie = Animator.StringToHash("isDie");
 
     private void Awake()
     {
@@ -32,18 +34,14 @@ public class Player : MonoBehaviour
 
     private void Start()
     {
-        _ani.SetBool(IsGround, true);
-        _ani.SetBool(IsJump1, false);
-        _ani.SetBool(IsJump2, false);
-        _ani.SetBool(IsRunning, false);
+        Reset();
     }
+
+    public int Heal => _heal;
 
     void Update()
     {
-//        if (_heal <= 0) _isDie = true;
-//        if (_isDie) {
-//            Debug.Log("Die");
-//        }
+        if (_heal <= 0) _isDie = true;
         if (Math.Abs(_rb2d.velocity.y) < 0.01)
         {
             _ani.SetBool(IsGround, true);
@@ -60,10 +58,8 @@ public class Player : MonoBehaviour
 
     private void FixedUpdate()
     {
-//        if (_heal <= 0) _isDie = true;
-//        if (_isDie) {
-//            Debug.Log("Die");
-//        }
+        
+        if (_isDie) return;
         MoveHorizontal(_inputHorizontal);
 
         if (_canJump)
@@ -71,20 +67,18 @@ public class Player : MonoBehaviour
             Jump();
             _canJump = false;
         }
-              
     }
 
     private void Jump()
     {
         if (_isGround)
         {
-            _rb2d.velocity = new Vector2(_rb2d.velocity.x, 0f); // Reset vận tốc Y để nhảy ổn định hơn
-            _rb2d.AddForce(Vector3.up * jumpForce, ForceMode2D.Impulse);
+            AddForceUp(jumpForce);
             _isGround = false;
-//            Debug.Log("Jump1");
             _ani.SetBool(IsGround, false);
             _ani.SetBool(IsJump1, true);
             _ani.SetBool(IsJump2, false);
+            AudioManager.Instance.PlayPlayerJumpClip();
         }
         else
         {
@@ -93,9 +87,9 @@ public class Player : MonoBehaviour
                 _rb2d.velocity = new Vector2(_rb2d.velocity.x, 0f); // Reset vận tốc Y để nhảy ổn định hơn
                 _rb2d.AddForce(Vector3.up * jumpForce, ForceMode2D.Impulse);
                 _canJump2 = false;
-//                Debug.Log("Jump2");
                 _ani.SetBool(IsJump1, false);
                 _ani.SetBool(IsJump2, true);
+                AudioManager.Instance.PlayPlayerJumpClip();
             }
         }
     }
@@ -104,7 +98,6 @@ public class Player : MonoBehaviour
     {
         float scaleX = transform.localScale.x;
         RaycastHit2D raycastHit2D = Physics2D.Raycast(transform.position + new Vector3(scaleX * 0.4f, 0, 0) , Vector2.right * scaleX, 0.05f);
-        
         
         if (Math.Abs(input) > 0.01) scaleX = Math.Sign(input) * Math.Abs(scaleX);
         _ani.SetBool(IsRunning, Math.Abs(input) > 0.01);
@@ -121,33 +114,65 @@ public class Player : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D other)
     {
-        if (other.gameObject.CompareTag("Ground"))
-        {
-            _isGround = true;
-            _canJump2 = true;
-            _ani.SetBool(IsGround, true);
-            _ani.SetBool(IsJump1, false);
-            _ani.SetBool(IsJump2, false);
-        }
-
         if (other.gameObject.CompareTag("Trap"))
         {
-            OnHit(100);
+            TakeDamage(50);
         }
     }
 
-    private void OnCollisionExit2D(Collision2D other)
-    {
-        if (other.gameObject.CompareTag("Trap"))
-        {
-            _ani.SetBool(Hit, false);
-        }
-    }
-
-    private void OnHit(int damage)
+    public void TakeDamage(int damage)
     {
         _heal -= damage;
+        if (_heal <= 0)
+        {
+            _isDie = true;
+            _ani.SetBool(IsDie, true);
+            Invoke(nameof(DestroyGameObject), 0.35f);
+            return;
+        }
+        
         _ani.SetBool(Hit, true);
-        _rb2d.AddForce(hitForce * Vector3.up, ForceMode2D.Impulse);
+        AddForceUp(hitForce);
+        Invoke(nameof(SetAnimationHitFalse), 0.3f);
+        AudioManager.Instance.PlayOnHitClip();
+    }
+
+    void SetAnimationHitFalse()
+    {
+        _ani.SetBool(Hit, false);
+    }
+
+    void DestroyGameObject()
+    {
+        gameObject.SetActive(false);
+        Time.timeScale = 0;
+        AudioManager.Instance.PlayDieClip();
+    }
+    public void Reset()
+    {
+        _heal = 100;
+        _isDie = false;
+        _ani.SetBool(Hit, false);
+        _ani.SetBool(IsDie, false);
+        _ani.SetBool(IsGround, true);
+        _ani.SetBool(IsJump1, false);
+        _ani.SetBool(IsJump2, false);
+        _ani.SetBool(IsRunning, false);
+        transform.position = new Vector3(-5.74f, 0.27f, 0);
+    }
+
+    public void AddForceUp(float force)
+    {
+        _rb2d.velocity = new Vector2(_rb2d.velocity.x, 0f); // Reset vận tốc Y để nhảy ổn định hơn
+        _rb2d.AddForce(Vector3.up * force, ForceMode2D.Impulse);
+    }
+
+    public void StandGround()
+    {
+        _isGround = true;
+        _canJump2 = true;
+        _ani.SetBool(IsGround, true);
+        _ani.SetBool(IsJump1, false);
+        _ani.SetBool(IsJump2, false);
     }
 }

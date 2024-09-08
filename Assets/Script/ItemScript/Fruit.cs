@@ -19,7 +19,8 @@ public class Fruit : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            GameController.Instance.AddScore(1);
+            AudioManager.Instance.PlayClaimClip();
+            GameController.Instance.AddScore(10);
             animator.SetBool(IsDestroy, true);
             Invoke(nameof(DestroyObject), 0.2f);
         }
